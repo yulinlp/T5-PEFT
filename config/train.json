@@ -16,7 +16,7 @@
     },
     "output_dir": "output",
     "evaluation_strategy": "steps",
-    "eval_steps": 10,
+    "eval_steps": 300,
     "save_strategy": "steps",
     "save_steps": 300,
     "logging_strategy": "steps",
