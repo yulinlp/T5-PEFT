@@ -1,2 +1,4 @@
 /output/*
 /results/*
+/dataset/*
+/cached_metrics/*

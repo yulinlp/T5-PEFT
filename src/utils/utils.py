@@ -92,8 +92,8 @@ def count_len(dataset: Dataset):
     print("success")
 
 def postprocess_text(preds, labels):
-    preds = [[pred.strip()] for pred in preds]
-    labels = [[label.strip()] for label in labels]
+    preds = [pred.strip() for pred in preds]
+    labels = [label.strip() for label in labels]
 
     return preds, labels
 

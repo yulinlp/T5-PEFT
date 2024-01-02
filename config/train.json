@@ -22,6 +22,7 @@
     "logging_strategy": "steps",
     "logging_steps": 300,
     "report_to": "tensorboard",
-    "save_model_dir": "results"
+    "save_model_dir": "results",
+    "metrics": ["bleu", "rouge", "perplexity"]
 }
 
