@@ -1,0 +1,27 @@
+{   
+    "seed": 114514,
+    "lr": 1e-3,
+    "n_epochs": 10,
+    "batch_size": 8,
+    "max_input_length": 512,
+    "max_output_length": 64,
+    "weight_decay": 0.01,
+    "gradient_accumulation_steps": 4,
+    "lora": {
+        "r": 32,
+        "alpha": 32,
+        "target_modules": ["q", "v"],
+        "dropout": 0.05,
+        "bias": "none"
+    },
+    "output_dir": "output",
+    "evaluation_strategy": "steps",
+    "eval_steps": 10,
+    "save_strategy": "steps",
+    "save_steps": 300,
+    "logging_strategy": "steps",
+    "logging_steps": 300,
+    "report_to": "tensorboard",
+    "save_model_dir": "results"
+}
+

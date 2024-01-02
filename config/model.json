@@ -1,0 +1,5 @@
+{
+    "model_name": "google/flan-t5-base",
+    "tokenizer_name": "google/flan-t5-base"
+}
+
