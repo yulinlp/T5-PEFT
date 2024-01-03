@@ -3,9 +3,9 @@ from torch.utils.data import Dataset
 
 
 class T5Dataset(Dataset):
-    def __init__(self, data: List, TrainConfig, tokenizer) -> None:
-        self.max_input_length = TrainConfig.max_input_length
-        self.max_output_length = TrainConfig.max_output_length
+    def __init__(self, data: List, Config, tokenizer) -> None:
+        self.max_input_length = Config.max_input_length
+        self.max_output_length = Config.max_output_length
         self.data = self.__preprocess(data, tokenizer)
         # print(type(self.data))
         # print(self.data[0])

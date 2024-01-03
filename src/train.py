@@ -6,9 +6,8 @@ from datasets import load_dataset
 import evaluate
 import torch
 import os
+from transformers import EarlyStoppingCallback
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
-
-# TODO: add metrics -> bleu-2, rouge-L, perplexity.
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
@@ -17,6 +16,11 @@ warnings.filterwarnings("ignore")
 ModelConfig = get_config('config/model.json')
 TrainConfig = get_config('config/train.json')
 
+metrics = {}
+for metric_name in TrainConfig.metrics:
+    metrics[metric_name] = evaluate.load(metric_name)
+    print(f"Loaded {metric_name}...")
+    
 tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,7 +34,7 @@ train_data, test_data, valid_data = clean_data(raw_data)
 
 train_set = T5Dataset(train_data, TrainConfig, tokenizer)
 test_set = T5Dataset(test_data, TrainConfig, tokenizer)
-valid_set = T5Dataset(valid_data[:10], TrainConfig, tokenizer)
+valid_set = T5Dataset(valid_data, TrainConfig, tokenizer)
 
 print(f"Train dataset size: {len(train_set)}")
 print(f"Test dataset size: {len(test_set)}")
@@ -76,6 +80,7 @@ training_args = Seq2SeqTrainingArguments(
     weight_decay=TrainConfig.weight_decay,
     predict_with_generate=True,
     report_to=TrainConfig.report_to,
+    load_best_model_at_end=True
 ) 
 
 def compute_metrics(eval_preds):
@@ -83,20 +88,19 @@ def compute_metrics(eval_preds):
     
     if isinstance(preds, tuple):
         preds = preds[0]
-    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=False)
 
     # Replace -100 in the labels as we can't decode them.
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=False)
     # print(decoded_preds)
     # print(decoded_labels)
     
     result = {}
     for metric_name in TrainConfig.metrics:
         print(f"Computing {metric_name}...")
-        metric = evaluate.load(path=f'./cached_metrics/{metric_name}')
-        print(f"Loaded {metric_name}...")
-        
+        metric = metrics[metric_name]
+        # metric = evaluate.load(path=f'./cached_metrics/{metric_name}')        
         if metric_name == "bleu":
             partial_result = metric.compute(predictions=decoded_preds, references=decoded_labels)
             result["bleu-2"] = partial_result["precisions"][1]
@@ -121,7 +125,8 @@ trainer = Seq2SeqTrainer(
     train_dataset=train_set,
     eval_dataset=valid_set,
     tokenizer=tokenizer,
-    compute_metrics=compute_metrics
+    compute_metrics=compute_metrics,
+    callbacks=[EarlyStoppingCallback,]
 )
 model.config.use_cache = False
 

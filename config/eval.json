@@ -1,0 +1,7 @@
+{
+    "is_PEFT": false,
+    "metrics": ["bleu", "rouge", "perplexity"],
+    "max_input_length": 512,
+    "max_output_length": 64,
+    "seed": 114514
+}

@@ -1,7 +1,7 @@
 {   
     "seed": 114514,
     "lr": 1e-3,
-    "n_epochs": 10,
+    "n_epochs": 20,
     "batch_size": 8,
     "max_input_length": 512,
     "max_output_length": 64,

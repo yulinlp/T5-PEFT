@@ -37,7 +37,7 @@ def _clean_data(dataset, catagory='train'):
             if data[i][j]['speaker'] == data[i][j - 1]['speaker']:
                 data[i][j - 1]['text'] += data[i][j]['text']
                 data[i].pop(j)
-    data = [[(dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(1, len(dialog), 2)] if dialog[0]['speaker']=='usr' else [('', dialog[idx]['text']) if idx == 0 else (dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(0, len(dialog), 2)] for dialog in data]
+    data = [[(dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(1, len(dialog), 2)] if dialog[0]['speaker']=='usr' else [(dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(2, len(dialog), 2)] for dialog in data]
     # 构造带有历史的对话数据
     new_data = []
     for idx, item in enumerate(data):
@@ -46,8 +46,7 @@ def _clean_data(dataset, catagory='train'):
                 'input': build_template_default(query=item[i][0], prefix=False, history=item[:i] if i > 0 else None),
                 'target': item[i][1]
             })
-        # print(new_data[1])
-        # exit()
+    
     return new_data
 
 def build_template_default(query, prefix=False, history=None):
