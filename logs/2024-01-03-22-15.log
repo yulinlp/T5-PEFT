@@ -1,0 +1,9 @@
+2024-01-03 22:15:54,930 INFO: {'model_name': 'google/flan-t5-base', 'tokenizer_name': 'google/flan-t5-base'} 
+2024-01-03 22:15:54,931 INFO: {'seed': 114514, 'lr': 0.001, 'n_epochs': 20, 'batch_size': 8, 'max_input_length': 512, 'max_output_length': 32, 'weight_decay': 0.01, 'gradient_accumulation_steps': 4, 'lora': {'r': 32, 'alpha': 32, 'target_modules': ['q', 'v'], 'dropout': 0.05, 'bias': 'none'}, 'output_dir': 'output/512-32', 'evaluation_strategy': 'steps', 'eval_steps': 300, 'save_strategy': 'steps', 'save_steps': 300, 'logging_strategy': 'steps', 'logging_steps': 300, 'report_to': 'tensorboard', 'save_model_dir': 'results/512-32', 'logging_dir': 'logs', 'metrics': ['bleu', 'rouge', 'perplexity']} 
+2024-01-03 22:15:59,233 INFO: Loaded bleu... 
+2024-01-03 22:16:01,781 INFO: Loaded rouge... 
+2024-01-03 22:16:03,926 INFO: Loaded perplexity... 
+2024-01-03 22:16:06,848 INFO: Successfully loaded dataset 
+2024-01-03 22:16:09,707 INFO: Train dataset size: 10191 
+2024-01-03 22:16:09,707 INFO: Test dataset size: 2295 
+2024-01-03 22:16:09,707 INFO: Valid dataset size: 2156 

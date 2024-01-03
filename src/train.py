@@ -1,3 +1,4 @@
+import time
 import warnings
 from utils.dataset import T5Dataset
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
@@ -7,7 +8,7 @@ import evaluate
 import torch
 import os
 from transformers import EarlyStoppingCallback
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
+from peft import LoraConfig, get_peft_model, TaskType
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
@@ -16,10 +17,20 @@ warnings.filterwarnings("ignore")
 ModelConfig = get_config('config/model.json')
 TrainConfig = get_config('config/train.json')
 
+if os.path.exists(TrainConfig.output_dir) and os.listdir(TrainConfig.output_dir):
+    raise ValueError(f"Output directory ({TrainConfig.output_dir}) already exists and is not empty.")
+
+if not os.path.exists(TrainConfig.logging_dir):
+    os.mkdir(TrainConfig.logging_dir)
+
+logger = create_logger(TrainConfig.logging_dir + '/' + time.strftime('%Y-%m-%d-%H-%M') + '.log')
+logger.info(ModelConfig)
+logger.info(TrainConfig)
+
 metrics = {}
 for metric_name in TrainConfig.metrics:
     metrics[metric_name] = evaluate.load(metric_name)
-    print(f"Loaded {metric_name}...")
+    logger.info(f"Loaded {metric_name}...")
     
 tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
@@ -27,7 +38,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 raw_data = load_dataset("./dataset/esconv")
-print("Successfully loaded dataset")
+logger.info("Successfully loaded dataset")
 # metric = evaluate.load("sacrebleu")
 
 train_data, test_data, valid_data = clean_data(raw_data)
@@ -36,9 +47,9 @@ train_set = T5Dataset(train_data, TrainConfig, tokenizer)
 test_set = T5Dataset(test_data, TrainConfig, tokenizer)
 valid_set = T5Dataset(valid_data, TrainConfig, tokenizer)
 
-print(f"Train dataset size: {len(train_set)}")
-print(f"Test dataset size: {len(test_set)}")
-print(f"Valid dataset size: {len(valid_set)}")
+logger.info(f"Train dataset size: {len(train_set)}")
+logger.info(f"Test dataset size: {len(test_set)}")
+logger.info(f"Valid dataset size: {len(valid_set)}")
 
 lora_config = LoraConfig(
     r=TrainConfig.lora['r'],
@@ -98,7 +109,7 @@ def compute_metrics(eval_preds):
     
     result = {}
     for metric_name in TrainConfig.metrics:
-        print(f"Computing {metric_name}...")
+        logger.info(f"Computing {metric_name}...")
         metric = metrics[metric_name]
         # metric = evaluate.load(path=f'./cached_metrics/{metric_name}')        
         if metric_name == "bleu":
@@ -113,9 +124,9 @@ def compute_metrics(eval_preds):
                              predictions=decoded_preds)
             result["perplexity"] = partial_result["mean_perplexity"]
 
-    # prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-    # result["gen_len"] = np.mean(prediction_lens)
-    # result = {k: round(v, 4) for k, v in result.items()}
+    logger.info(f"bleu-2: {result['bleu-2']}")
+    logger.info(f"rouge-L: {result['rouge-L']}")
+    logger.info(f"perplexity: {result['perplexity']}")
     return result
 
 trainer = Seq2SeqTrainer(

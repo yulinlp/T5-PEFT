@@ -2,6 +2,7 @@ import json
 from easydict import EasyDict
 import numpy as np
 from torch.utils.data import Dataset
+import logging
 
 def read_json(path, n_rows=None):
     '''
@@ -91,8 +92,32 @@ def count_len(dataset: Dataset):
     print("success")
 
 def postprocess_text(preds, labels):
+    '''
+    文本后处理
+    '''
     preds = [pred.strip() for pred in preds]
     labels = [label.strip() for label in labels]
 
     return preds, labels
 
+def create_logger(logger_file_name):
+    """
+    创建logger
+    """
+    logger = logging.getLogger()         # 设定日志对象
+    logger.setLevel(logging.INFO)        # 设定日志等级
+
+    file_handler = logging.FileHandler(logger_file_name)   # 文件输出
+    console_handler = logging.StreamHandler()              # 控制台输出
+
+    # 输出格式
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s: %(message)s "
+    )
+
+    file_handler.setFormatter(formatter)       # 设置文件输出格式
+    console_handler.setFormatter(formatter)    # 设施控制台输出格式
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger

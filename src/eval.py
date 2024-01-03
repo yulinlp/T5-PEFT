@@ -16,9 +16,12 @@ warnings.filterwarnings("ignore")
 EvalConfig = get_config('config/eval.json')
 ModelConfig = get_config('config/model.json')
 
+print(ModelConfig)
+print(EvalConfig)
+
 if EvalConfig.is_PEFT:
     # Load peft config for pre-trained checkpoint etc.
-    peft_model_id = "results"
+    peft_model_id = EvalConfig.PEFT_model_dir
     config = PeftConfig.from_pretrained(peft_model_id)
     # load base LLM model and tokenizer
     model = AutoModelForSeq2SeqLM.from_pretrained(config.base_model_name_or_path, device_map={"":0})

@@ -4,7 +4,7 @@
     "n_epochs": 20,
     "batch_size": 8,
     "max_input_length": 512,
-    "max_output_length": 64,
+    "max_output_length": 32,
     "weight_decay": 0.01,
     "gradient_accumulation_steps": 4,
     "lora": {
@@ -14,7 +14,7 @@
         "dropout": 0.05,
         "bias": "none"
     },
-    "output_dir": "output",
+    "output_dir": "output/512-32",
     "evaluation_strategy": "steps",
     "eval_steps": 300,
     "save_strategy": "steps",
@@ -22,7 +22,8 @@
     "logging_strategy": "steps",
     "logging_steps": 300,
     "report_to": "tensorboard",
-    "save_model_dir": "results",
+    "save_model_dir": "results/512-32",
+    "logging_dir": "logs",
     "metrics": ["bleu", "rouge", "perplexity"]
 }
 
