@@ -17,6 +17,8 @@ warnings.filterwarnings("ignore")
 ModelConfig = get_config('config/model.json')
 TrainConfig = get_config('config/train.json')
 
+seed_everything(TrainConfig.seed)
+
 if os.path.exists(TrainConfig.output_dir) and os.listdir(TrainConfig.output_dir):
     raise ValueError(f"Output directory ({TrainConfig.output_dir}) already exists and is not empty.")
 
@@ -99,11 +101,11 @@ def compute_metrics(eval_preds):
     # print(preds, labels)
     if isinstance(preds, tuple):
         preds = preds[0]
-    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=False)
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
 
     # Replace -100 in the labels as we can't decode them.
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=False)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     # print(decoded_preds)
     # print(decoded_labels)
     
@@ -118,15 +120,10 @@ def compute_metrics(eval_preds):
         elif metric_name == "rouge":
             partial_result = metric.compute(predictions=decoded_preds, references=decoded_labels)
             result["rouge-L"] = partial_result["rougeL"]
-        elif metric_name == "perplexity":
-            partial_result = metric.compute(model_id='gpt2',
-                             add_start_token=False,
-                             predictions=decoded_preds)
-            result["perplexity"] = partial_result["mean_perplexity"]
 
     logger.info(f"bleu-2: {result['bleu-2']}")
     logger.info(f"rouge-L: {result['rouge-L']}")
-    logger.info(f"perplexity: {result['perplexity']}")
+    # logger.info(f"perplexity: {result['perplexity']}")
     return result
 
 trainer = Seq2SeqTrainer(
@@ -134,9 +131,9 @@ trainer = Seq2SeqTrainer(
     args=training_args,
     data_collator=data_collator,
     train_dataset=train_set,
-    eval_dataset=valid_set,
+    eval_dataset=test_set,
     tokenizer=tokenizer,
-    compute_metrics=compute_metrics,
+    # compute_metrics=compute_metrics,
     callbacks=[EarlyStoppingCallback(early_stopping_patience=TrainConfig.early_stopping_patience),]
 )
 model.config.use_cache = False

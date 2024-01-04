@@ -3,6 +3,10 @@ from easydict import EasyDict
 import numpy as np
 from torch.utils.data import Dataset
 import logging
+import torch
+import random
+
+from tqdm import tqdm
 
 def read_json(path, n_rows=None):
     '''
@@ -113,3 +117,47 @@ def create_logger(logger_file_name):
     logger.addHandler(console_handler)
 
     return logger
+
+def seed_everything(seed):
+    if seed >= 10000:
+        raise ValueError("seed number should be less than 10000")
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+    else:
+        rank = 0
+    seed = (rank * 100000) + seed
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    
+def compute_ppl(model, tokenizer, test_set, EvalConfig):
+    encodings = tokenizer(test_set['input_ids'], return_tensors='pt', truncation=True)
+    max_length = model.config.n_positions
+    stride = EvalConfig.max_input_length
+    seq_len = encodings.input_ids.size(1)
+
+    nlls = []
+    prev_end_loc = 0
+    for begin_loc in tqdm(range(0, seq_len, stride)):
+        end_loc = min(begin_loc + max_length, seq_len)
+        trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
+        input_ids = encodings.input_ids[:, begin_loc:end_loc].to('cuda')
+        target_ids = input_ids.clone()
+        target_ids[:, :-trg_len] = -100
+
+        with torch.no_grad():
+            outputs = model(input_ids, labels=target_ids)
+
+            # loss is calculated using CrossEntropyLoss which averages over valid labels
+            # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
+            # to the left by 1.
+            neg_log_likelihood = outputs.loss
+
+        nlls.append(neg_log_likelihood)
+
+        prev_end_loc = end_loc
+        if end_loc == seq_len:
+            break
+
+    ppl = torch.exp(torch.stack(nlls).mean())

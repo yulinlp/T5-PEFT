@@ -1,12 +1,12 @@
 {   
-    "seed": 114514,
-    "lr": 1e-3,
-    "n_epochs": 20,
+    "seed": 1234,
+    "lr": 5e-4,
+    "n_epochs": 10,
     "batch_size": 8,
     "max_input_length": 512,
     "max_output_length": 32,
     "weight_decay": 0.01,
-    "gradient_accumulation_steps": 4,
+    "gradient_accumulation_steps": 1,
     "lora": {
         "r": 8,
         "alpha": 8,
@@ -14,17 +14,17 @@
         "dropout": 0.05,
         "bias": "none"
     },
-    "output_dir": "output/test",
+    "output_dir": "output/minibatch",
     "evaluation_strategy": "steps",
-    "eval_steps": 5,
+    "eval_steps": 500,
     "save_strategy": "steps",
-    "save_steps": 300,
+    "save_steps": 500,
     "logging_strategy": "steps",
-    "logging_steps": 300,
+    "logging_steps": 500,
     "report_to": "tensorboard",
-    "save_model_dir": "results/test",
+    "save_model_dir": "results/minibatch",
     "logging_dir": "logs",
-    "early_stopping_patience": 2,
-    "metrics": ["bleu", "rouge", "perplexity"]
+    "early_stopping_patience": 3,
+    "metrics": ["bleu", "rouge"]
 }
 
