@@ -96,7 +96,7 @@ training_args = Seq2SeqTrainingArguments(
 
 def compute_metrics(eval_preds):
     preds, labels = eval_preds
-    
+    # print(preds, labels)
     if isinstance(preds, tuple):
         preds = preds[0]
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=False)
@@ -137,7 +137,7 @@ trainer = Seq2SeqTrainer(
     eval_dataset=valid_set,
     tokenizer=tokenizer,
     compute_metrics=compute_metrics,
-    callbacks=[EarlyStoppingCallback,]
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=TrainConfig.early_stopping_patience),]
 )
 model.config.use_cache = False
 

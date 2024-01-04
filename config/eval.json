@@ -1,8 +1,8 @@
 {
     "is_PEFT": true,
     "metrics": ["bleu", "rouge", "perplexity"],
-    "max_input_length": 256,
-    "max_output_length": 64,
+    "max_input_length": 512,
+    "max_output_length": 32,
     "seed": 114514,
-    "PEFT_model_dir": "results/256-64"
+    "PEFT_model_dir": "results/512-32"
 }

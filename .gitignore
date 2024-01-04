@@ -2,3 +2,4 @@
 /results/*
 /dataset/*
 /cached_metrics/*
+/logs/*

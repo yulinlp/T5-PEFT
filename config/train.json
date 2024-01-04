@@ -8,22 +8,23 @@
     "weight_decay": 0.01,
     "gradient_accumulation_steps": 4,
     "lora": {
-        "r": 32,
-        "alpha": 32,
+        "r": 8,
+        "alpha": 8,
         "target_modules": ["q", "v"],
         "dropout": 0.05,
         "bias": "none"
     },
-    "output_dir": "output/512-32",
+    "output_dir": "output/test",
     "evaluation_strategy": "steps",
-    "eval_steps": 300,
+    "eval_steps": 5,
     "save_strategy": "steps",
     "save_steps": 300,
     "logging_strategy": "steps",
     "logging_steps": 300,
     "report_to": "tensorboard",
-    "save_model_dir": "results/512-32",
+    "save_model_dir": "results/test",
     "logging_dir": "logs",
+    "early_stopping_patience": 2,
     "metrics": ["bleu", "rouge", "perplexity"]
 }
 

@@ -91,14 +91,6 @@ def count_len(dataset: Dataset):
     plt.show()
     print("success")
 
-def postprocess_text(preds, labels):
-    '''
-    文本后处理
-    '''
-    preds = [pred.strip() for pred in preds]
-    labels = [label.strip() for label in labels]
-
-    return preds, labels
 
 def create_logger(logger_file_name):
     """

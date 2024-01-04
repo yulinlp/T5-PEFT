@@ -19,6 +19,11 @@ ModelConfig = get_config('config/model.json')
 print(ModelConfig)
 print(EvalConfig)
 
+metrics = {}
+for metric_name in EvalConfig.metrics:
+    metrics[metric_name] = evaluate.load(metric_name)
+    print(f"Loaded {metric_name}...")
+
 if EvalConfig.is_PEFT:
     # Load peft config for pre-trained checkpoint etc.
     peft_model_id = EvalConfig.PEFT_model_dir
@@ -52,15 +57,25 @@ test_set = T5Dataset(test_data, EvalConfig, tokenizer)
 
 def evaluate_peft_model(sample):
     # generate summary
-    outputs = model.generate(input_ids=torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), do_sample=True, top_p=0.9, max_new_tokens=EvalConfig.max_output_length, min_new_tokens=1)
-    prediction = tokenizer.decode(outputs[0].detach().cpu().numpy(), skip_special_tokens=False)
-    # decode eval sample
+    preds = model.generate(input_ids=torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), do_sample=True, top_p=0.9, max_new_tokens=EvalConfig.max_output_length, min_new_tokens=1)
+    # prediction = tokenizer.decode(outputs[0].detach().cpu().numpy(), skip_special_tokens=False)
+    # # decode eval sample
+    # # Replace -100 in the labels as we can't decode them.
+    # labels = [0 if val == -100 else val for val in sample['labels']]
+    # labels = tokenizer.decode(labels, skip_special_tokens=False)
+
+    if isinstance(preds, tuple):
+        preds = preds[0]
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+    
     # Replace -100 in the labels as we can't decode them.
-    labels = [0 if val == -100 else val for val in sample['labels']]
-    labels = tokenizer.decode(labels, skip_special_tokens=False)
-
-    return prediction, labels
-
+    labels = sample['labels']
+    labels = torch.tensor([[0 if val == -100 else val for val in labels]]).cuda()
+    
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    print('labels: ', decoded_labels)
+    print('preds: ', decoded_preds)
+    return decoded_preds[0], decoded_labels[0]
 
 predictions, references = [], []
 for sample in tqdm(test_set, desc="Generating"):
@@ -76,8 +91,7 @@ for sample in tqdm(test_set, desc="Generating"):
 
 result = {}
 for metric_name in tqdm(EvalConfig.metrics, desc="Evaluating"):
-    print(f"Loading {metric_name}...")
-    metric = evaluate.load(path=f'./cached_metrics/{metric_name}')
+    metric = metrics[metric_name]
     print(f"Computing {metric_name}...")
     
     if metric_name == "bleu":
