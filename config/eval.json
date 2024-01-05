@@ -1,10 +1,10 @@
 {
     "is_PEFT": true,
-    "metrics": ["bleu", "rouge", "perplexity", "bertscore"],
+    "metrics": ["bertscore", "bleu", "rouge", "perplexity"],
     "max_input_length": 512,
-    "max_output_length": 32,
+    "max_output_length": 64,
     "seed": 1234,
-    "PEFT_model_dir": "results/512-32_minilora",
+    "PEFT_model_dir": "results/512-64",
     "GenerateConfig": {
         "do_sample": true,
         "top_k": 30,

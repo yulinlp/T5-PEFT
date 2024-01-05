@@ -87,8 +87,8 @@ for sample in tqdm(test_set, desc="Generating"):
     p, l, loss = evaluate_peft_model(sample)
     predictions.append(p)
     references.append(l)
-    print("Predicted: ", p)
-    print("Reference: ", l)
+    # print("Predicted: ", p)
+    # print("Reference: ", l)
     losses.append(loss)
 
 result = {}

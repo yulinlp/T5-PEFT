@@ -37,3 +37,39 @@ class T5Dataset(Dataset):
 
         inputs['labels'] = targets["input_ids"]
         return inputs
+
+
+class GPT2Dataset(Dataset):
+    def __init__(self, data: List, Config, tokenizer) -> None:
+        self.max_input_length = Config.max_input_length
+        self.max_output_length = Config.max_output_length
+        self.data = self.__preprocess(data, tokenizer)
+    
+    def __getitem__(self, index) -> Any:
+        return {"labels": self.data['labels'][index], "input_ids": self.data["input_ids"][index], "attention_mask": self.data['attention_mask'][index]}
+        # return self.data[index]
+    
+    def __len__(self) -> int:
+        return len(self.data["input_ids"])
+    
+    def __preprocess(self, data, tokenizer, padding="max_length"):
+        # tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        tokenizer.pad_token_id = 0
+        tokenizer.pad_token = '[PAD]'
+        # print(data[0])
+        # tokenize inputs
+        inputs = [item['input'] for item in data]
+        inputs = tokenizer(inputs, max_length=self.max_input_length, padding=padding, truncation=True)
+        # Tokenize targets with the `target` keyword argument
+        targets = [item['target'] for item in data]
+        targets = tokenizer(targets, max_length=self.max_output_length, padding=padding, truncation=True)
+
+        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+        # padding in the loss.
+        if padding == "max_length":
+            targets["input_ids"] = [
+                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in targets["input_ids"]
+            ]
+
+        inputs['labels'] = targets["input_ids"]
+        return inputs

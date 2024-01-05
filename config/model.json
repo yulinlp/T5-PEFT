@@ -1,5 +1,5 @@
 {
-    "model_name": "google/flan-t5-base",
-    "tokenizer_name": "google/flan-t5-base"
+    "model_name": "gpt2",
+    "tokenizer_name": "gpt2"
 }
 

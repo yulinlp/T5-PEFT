@@ -1,7 +1,7 @@
 import time
 import warnings
-from utils.dataset import T5Dataset
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
+from utils.dataset import *
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM, DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from utils.utils import *
 from datasets import load_dataset
 import evaluate
@@ -29,13 +29,16 @@ logger = create_logger(TrainConfig.logging_dir + '/' + time.strftime('%Y-%m-%d-%
 logger.info(ModelConfig)
 logger.info(TrainConfig)
 
-metrics = {}
-for metric_name in TrainConfig.metrics:
-    metrics[metric_name] = evaluate.load(metric_name)
-    logger.info(f"Loaded {metric_name}...")
+# metrics = {}
+# for metric_name in TrainConfig.metrics:
+#     metrics[metric_name] = evaluate.load(metric_name)
+#     logger.info(f"Loaded {metric_name}...")
     
 tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
+if 'gpt' in ModelConfig.model_name:
+    model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
+else:
+    model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
@@ -44,10 +47,14 @@ logger.info("Successfully loaded dataset")
 # metric = evaluate.load("sacrebleu")
 
 train_data, test_data, valid_data = clean_data(raw_data)
-
-train_set = T5Dataset(train_data, TrainConfig, tokenizer)
-test_set = T5Dataset(test_data, TrainConfig, tokenizer)
-valid_set = T5Dataset(valid_data, TrainConfig, tokenizer)
+if 'gpt' in ModelConfig.model_name:
+    train_set = GPT2Dataset(train_data, TrainConfig, tokenizer)
+    test_set = GPT2Dataset(test_data, TrainConfig, tokenizer)
+    valid_set = GPT2Dataset(valid_data, TrainConfig, tokenizer)
+else:
+    train_set = T5Dataset(train_data, TrainConfig, tokenizer)
+    test_set = T5Dataset(test_data, TrainConfig, tokenizer)
+    valid_set = T5Dataset(valid_data, TrainConfig, tokenizer)
 
 logger.info(f"Train dataset size: {len(train_set)}")
 logger.info(f"Test dataset size: {len(test_set)}")
@@ -56,10 +63,9 @@ logger.info(f"Valid dataset size: {len(valid_set)}")
 lora_config = LoraConfig(
     r=TrainConfig.lora['r'],
     lora_alpha=TrainConfig.lora['alpha'],
-    target_modules=TrainConfig.lora['target_modules'],
     lora_dropout=TrainConfig.lora['dropout'],
     bias=TrainConfig.lora['bias'],
-    task_type=TaskType.SEQ_2_SEQ_LM
+    task_type=TaskType.SEQ_2_SEQ_LM if 't5' in ModelConfig.model_name else TaskType.CAUSAL_LM
 )
 
 model = get_peft_model(model, lora_config)
