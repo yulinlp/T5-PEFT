@@ -4,15 +4,20 @@ from utils.dataset import *
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM, DataCollatorForSeq2Seq, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 from utils.utils import *
 from datasets import load_dataset
-import evaluate
+import argparse
 import torch
 import os
 from transformers import EarlyStoppingCallback
 from peft import LoraConfig, get_peft_model, TaskType
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--config', type=str, default='config/t5-base/', help='config directory')
 # ConfigRoot = 'config/gpt2-small/'
 # ConfigRoot = 'config/t5-base/'
-ConfigRoot = 'config/flan-t5-base/'
+# ConfigRoot = 'config/flan-t5-base/'
+
+args = parser.parse_args()
+ConfigRoot = args.config
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
@@ -28,10 +33,6 @@ seed_everything(TrainConfig.seed)
 
 if not os.path.exists(TrainConfig.logging_dir):
     os.mkdir(TrainConfig.logging_dir)
-
-logger = create_logger(TrainConfig.logging_dir + '/' + time.strftime('%Y-%m-%d-%H-%M') + '.log')
-logger.info(ModelConfig)
-logger.info(TrainConfig)
     
 if 'gpt' in ModelConfig.model_name:
     model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
@@ -61,7 +62,7 @@ model.to(device)
 print("Backbone loaded") 
 
 raw_data = load_dataset("./dataset/esconv")
-logger.info("Successfully loaded dataset")
+print("Successfully loaded dataset")
 
 train_data, test_data, valid_data = clean_data(raw_data, TrainConfig.data_official)
 if 'gpt' in ModelConfig.model_name:
@@ -74,9 +75,9 @@ else:
     valid_set = T5Dataset(valid_data, TrainConfig, ModelConfig, tokenizer)
 
 # exit()
-logger.info(f"Train dataset size: {len(train_set)}")
-logger.info(f"Test dataset size: {len(test_set)}")
-logger.info(f"Valid dataset size: {len(valid_set)}")
+print(f"Train dataset size: {len(train_set)}")
+print(f"Test dataset size: {len(test_set)}")
+print(f"Valid dataset size: {len(valid_set)}")
 
 lora_config = LoraConfig(
     r=TrainConfig.lora['r'],

@@ -1,6 +1,6 @@
 {   
     "seed": 1234,
-    "lr": 5e-4,
+    "lr": 1e-3,
     "n_epochs": 5,
     "batch_size": 8,
     "max_input_length": 512,

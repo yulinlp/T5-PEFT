@@ -1,4 +1,6 @@
+import argparse
 import math
+import time
 import torch
 from peft import PeftModel, PeftConfig
 from tqdm import tqdm
@@ -11,7 +13,14 @@ from utils.dataset import *
 from utils.utils import *
 import evaluate
 
-ConfigRoot = 'config/flan-t5-base/'
+parser = argparse.ArgumentParser()
+parser.add_argument('--config', type=str, default='config/t5-base/', help='config directory')
+# ConfigRoot = 'config/gpt2-small/'
+# ConfigRoot = 'config/t5-base/'
+# ConfigRoot = 'config/flan-t5-base/'
+
+args = parser.parse_args()
+ConfigRoot = args.config
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
@@ -22,13 +31,17 @@ EvalConfig = get_config(ConfigRoot + 'eval.json')
 GenerateConfig = EasyDict(EvalConfig.GenerateConfig)
 seed_everything(EvalConfig.seed)
 
-print(ModelConfig)
-print(EvalConfig)
+if not os.path.exists(EvalConfig.logging_dir):
+    os.mkdir(EvalConfig.logging_dir)
+
+logger = create_logger(EvalConfig.logging_dir + '/' + time.strftime('%Y-%m-%d-%H-%M') + '.log')
+logger.info(ModelConfig)
+logger.info(EvalConfig)
 
 metrics = {}
 for metric_name in EvalConfig.metrics:
     metrics[metric_name] = evaluate.load('cached_metrics/' + metric_name)
-    print(f"Loaded {metric_name}...")
+    logger.info(f"Loaded {metric_name}...")
 
 if 'gpt' in ModelConfig.model_name:
     model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
@@ -56,9 +69,9 @@ if EvalConfig.is_PEFT:
     tokenizer.add_special_tokens(special_tokens_dict)
     model.resize_token_embeddings(len(tokenizer))
     model.tie_weights()
-    print("PEFT Model loaded") 
+    logger.info("PEFT Model loaded") 
 else:
-    print("BASE Model loaded") 
+    logger.info("BASE Model loaded") 
     
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
@@ -66,7 +79,7 @@ model.config.use_cache = True
 model.eval()
 
 raw_data = load_dataset("./dataset/esconv")
-print("Successfully loaded dataset")
+logger.info("Successfully loaded dataset")
 
 train_data, test_data, valid_data = clean_data(raw_data, EvalConfig.data_official)
 if 'gpt' in ModelConfig.model_name:
@@ -97,7 +110,7 @@ def evaluate_gpt2(sample):
     if isinstance(preds, tuple):
         preds = preds[0]
     decoded_inputs = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
-    # print("decoded_inputs: ", decoded_inputs)
+    # logger.info("decoded_inputs: ", decoded_inputs)
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
     decoded_preds = decoded_preds[0].replace(decoded_inputs, '')
     
@@ -125,9 +138,9 @@ def evaluate_t5(sample):
     if isinstance(preds, tuple):
         preds = preds[0]
     # decoded_inputs = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
-    # print(decoded_inputs)
+    # logger.info(decoded_inputs)
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    # print(decoded_preds)
+    # logger.info(decoded_preds)
     # Replace -100 in the labels as we can't decode them.
     labels = sample['labels']
     model.eval()
@@ -139,9 +152,14 @@ def evaluate_t5(sample):
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     return decoded_preds[0], decoded_labels[0], loss
 
+logger.info("="*30)
+logger.info("="*30)
+logger.info("Evaluation started")
+logger.info("="*30)
+logger.info("="*30)
 
 predictions, references, losses = [], [], []
-for sample in tqdm(test_set, desc="Generating"):
+for idx, sample in tqdm(enumerate(test_set), desc="Generating"):
     if 't5' in ModelConfig.model_name:
         p, l, loss = evaluate_t5(sample)
     else:
@@ -150,16 +168,16 @@ for sample in tqdm(test_set, desc="Generating"):
     references.append(l)
     losses.append(loss)
     
-    print("Predicted: ", p)
-    print("Reference: ", l)
-    print("Loss: ", loss)
-    print("#" * 30)
+    logger.info(f"{idx} Predicted: ", p)
+    logger.info(f"{idx} Reference: ", l)
+    logger.info(f"{idx} Loss: ", loss)
+    logger.info("#" * 30)
     # exit()
     
 result = {}
 for metric_name in tqdm(EvalConfig.metrics, desc="Evaluating"):
     metric = metrics[metric_name]
-    print(f"Computing {metric_name}...")
+    logger.info(f"Computing {metric_name}...")
     
     if metric_name == "bleu":
         partial_result = metric.compute(predictions=predictions, references=[[r] for r in references])
@@ -180,10 +198,10 @@ for metric_name in tqdm(EvalConfig.metrics, desc="Evaluating"):
         result["bertscore_R"] = sum(partial_result["recall"]) / len(predictions)
         result["bertscore_F1"] = sum(partial_result["f1"]) / len(predictions)
 
-print(f"bleu-2: {result['bleu-2']}")
-print(f"bleu-4: {result['bleu-4']}")
-print(f"rouge-L: {result['rouge-L']}")
-print(f"perplexity: {result['perplexity']}")
-print(f"bertscore_P: {result['bertscore_P']}")
-print(f"bertscore_R: {result['bertscore_R']}")
-print(f"bertscore_F1: {result['bertscore_F1']}")
+logger.info(f"bleu-2: {result['bleu-2']}")
+logger.info(f"bleu-4: {result['bleu-4']}")
+logger.info(f"rouge-L: {result['rouge-L']}")
+logger.info(f"perplexity: {result['perplexity']}")
+logger.info(f"bertscore_P: {result['bertscore_P']}")
+logger.info(f"bertscore_R: {result['bertscore_R']}")
+logger.info(f"bertscore_F1: {result['bertscore_F1']}")
