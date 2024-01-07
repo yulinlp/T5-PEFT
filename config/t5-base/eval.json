@@ -7,7 +7,8 @@
     "truncation": "from_end",
     "data_official": true,
     "seed": 1234,
-    "PEFT_model_dir": "output/gpt2/checkpoint-300",
+    "PEFT_model_dir": "results/0107/t5-base",
+    "logging_dir": "logs/t5-base",
     "GenerateConfig": {
         "do_sample": true,
         "top_k": 30,

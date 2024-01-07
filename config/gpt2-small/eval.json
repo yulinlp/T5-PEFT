@@ -7,7 +7,8 @@
     "truncation": "from_end",
     "data_official": true,
     "seed": 1234,
-    "PEFT_model_dir": "results/gpt2",
+    "PEFT_model_dir": "results/0107/gpt2",
+    "logging_dir": "logs/gpt2",
     "GenerateConfig": {
         "do_sample": true,
         "top_k": 30,

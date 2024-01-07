@@ -7,7 +7,8 @@
     "truncation": "from_end",
     "data_official": true,
     "seed": 1234,
-    "PEFT_model_dir": "output/flan-t5-base/512-32/checkpoint-1200",
+    "PEFT_model_dir": "results/0107/flan-t5-base",
+    "logging_dir": "logs/flan-t5-base",
     "GenerateConfig": {
         "do_sample": true,
         "top_k": 30,
