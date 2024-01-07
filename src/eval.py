@@ -2,20 +2,23 @@ import math
 import torch
 from peft import PeftModel, PeftConfig
 from tqdm import tqdm
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 import warnings
 import os
 from datasets import load_dataset
 from random import randrange
-from utils.dataset import T5Dataset
+from utils.dataset import *
 from utils.utils import *
 import evaluate
 
+ConfigRoot = 'config/flan-t5-base/'
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
 warnings.filterwarnings("ignore")
 
-EvalConfig = get_config('config/eval.json')
-ModelConfig = get_config('config/model.json')
+ModelConfig = get_config(ConfigRoot + 'model.json')
+EvalConfig = get_config(ConfigRoot + 'eval.json')
 GenerateConfig = EasyDict(EvalConfig.GenerateConfig)
 seed_everything(EvalConfig.seed)
 
@@ -24,38 +27,93 @@ print(EvalConfig)
 
 metrics = {}
 for metric_name in EvalConfig.metrics:
-    metrics[metric_name] = evaluate.load(metric_name)
+    metrics[metric_name] = evaluate.load('cached_metrics/' + metric_name)
     print(f"Loaded {metric_name}...")
+
+if 'gpt' in ModelConfig.model_name:
+    model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name, padding_side="right")
+else:
+    model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name, padding_side="left")
 
 if EvalConfig.is_PEFT:
     # Load peft config for pre-trained checkpoint etc.
     peft_model_id = EvalConfig.PEFT_model_dir
-    config = PeftConfig.from_pretrained(peft_model_id)
-    # load base LLM model and tokenizer
-    model = AutoModelForSeq2SeqLM.from_pretrained(config.base_model_name_or_path, device_map={"":0})
-    tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
-    # Load the Lora model
     model = PeftModel.from_pretrained(model, peft_model_id, device_map={"":0})
+    if 'gpt' in ModelConfig.model_name:
+        # load base LLM model and tokenizer
+        bos = '<|bos|>'
+        pad = '<|pad|>'
+        user = '<|user|>'
+        assistant = '<|assistant|>'
+        special_tokens_dict = {'bos_token': bos, 'pad_token': pad, 'additional_special_tokens': [user, assistant]}
+    else:
+        bos = '<|bos|>'
+        user = '<|user|>'
+        assistant = '<|assistant|>'
+        special_tokens_dict = {'bos_token': bos, 'additional_special_tokens': [user, assistant]}
+    tokenizer.add_special_tokens(special_tokens_dict)
+    model.resize_token_embeddings(len(tokenizer))
+    model.tie_weights()
     print("PEFT Model loaded") 
 else:
-    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
     print("BASE Model loaded") 
-
+    
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+model.config.use_cache = True
 model.eval()
 
 raw_data = load_dataset("./dataset/esconv")
 print("Successfully loaded dataset")
 
-train_data, test_data, valid_data = clean_data(raw_data)
-train_set = T5Dataset(train_data, EvalConfig, tokenizer)
-test_set = T5Dataset(test_data, EvalConfig, tokenizer)
-valid_set = T5Dataset(valid_data, EvalConfig, tokenizer)
+train_data, test_data, valid_data = clean_data(raw_data, EvalConfig.data_official)
+if 'gpt' in ModelConfig.model_name:
+    train_set = GPT2Dataset(train_data, EvalConfig, ModelConfig, tokenizer)
+    test_set = GPT2Dataset(test_data, EvalConfig, ModelConfig, tokenizer)
+    valid_set = GPT2Dataset(valid_data, EvalConfig, ModelConfig, tokenizer)
+else:
+    train_set = T5Dataset(train_data, EvalConfig, ModelConfig, tokenizer)
+    test_set = T5Dataset(test_data, EvalConfig, ModelConfig, tokenizer)
+    valid_set = T5Dataset(valid_data, EvalConfig, ModelConfig, tokenizer)
 
-def evaluate_peft_model(sample):
+tokenizer.padding_side = "left"
+
+def evaluate_gpt2(sample):
     # generate
+    target_idx = find_last_index(sample['input_ids'], tokenizer.additional_special_tokens_ids[1])
+    raw_input_ids = sample['input_ids']
+    label_ids = [tokenizer.pad_token_id] * (target_idx + 1) + sample['input_ids'][target_idx + 1:]
+    sample['input_ids'] = [tokenizer.pad_token_id] * (len(sample['input_ids']) - target_idx - 1) + sample['input_ids'][:target_idx + 1]
+    preds = model.generate(input_ids=torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), 
+                           do_sample=GenerateConfig.do_sample, 
+                           pad_token_id=tokenizer.pad_token_id,
+                           top_k=GenerateConfig.top_k, 
+                           top_p=GenerateConfig.top_p, 
+                           temperature=GenerateConfig.temperature, 
+                           repetition_penalty=GenerateConfig.repetition_penalty,
+                           max_new_tokens=GenerateConfig.max_length)
+    if isinstance(preds, tuple):
+        preds = preds[0]
+    decoded_inputs = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
+    # print("decoded_inputs: ", decoded_inputs)
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+    decoded_preds = decoded_preds[0].replace(decoded_inputs, '')
+    
+    # Replace -100 in the labels as we can't decode them.
+    with torch.no_grad():
+        output = model(input_ids = torch.tensor(raw_input_ids).unsqueeze(dim=0).cuda(), 
+                       labels = torch.tensor([-100 if i == tokenizer.pad_token_id else i for i in raw_input_ids]).unsqueeze(dim=0).cuda()
+                       )
+        loss = output.loss.item()
+
+    decoded_labels = tokenizer.batch_decode([label_ids], skip_special_tokens=True)[0]
+    return decoded_preds, decoded_labels, loss
+
+def evaluate_t5(sample):
+    # target_idx = sample['input_ids'].index(tokenizer.eos_token_id)
+    # sample['input_ids'] = sample['input_ids'][ :target_idx] + [tokenizer.additional_special_tokens_ids[1]] + [tokenizer.pad_token_id] * (len(sample['input_ids']) - target_idx - 1)
     preds = model.generate(input_ids=torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), 
                            do_sample=GenerateConfig.do_sample, 
                            top_k=GenerateConfig.top_k, 
@@ -63,34 +121,41 @@ def evaluate_peft_model(sample):
                            temperature=GenerateConfig.temperature, 
                            repetition_penalty=GenerateConfig.repetition_penalty,
                            max_length=GenerateConfig.max_length)
+    
     if isinstance(preds, tuple):
         preds = preds[0]
-    
+    # decoded_inputs = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
+    # print(decoded_inputs)
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    
+    # print(decoded_preds)
     # Replace -100 in the labels as we can't decode them.
     labels = sample['labels']
-    # labels = torch.tensor([[0 if val == -100 else val for val in labels]]).cuda()
-    # preds = torch.nn.functional.pad(preds, (0, labels.size(1) - preds.size(1)), 'constant', 0)
     model.eval()
     with torch.no_grad():
         output = model(input_ids = torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), labels = torch.tensor([labels]).cuda())
         loss = output.loss.item()
-    # print(loss)
-    
+        
     labels = torch.tensor([[0 if val == -100 else val for val in labels]]).cuda()
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     return decoded_preds[0], decoded_labels[0], loss
 
+
 predictions, references, losses = [], [], []
 for sample in tqdm(test_set, desc="Generating"):
-    p, l, loss = evaluate_peft_model(sample)
+    if 't5' in ModelConfig.model_name:
+        p, l, loss = evaluate_t5(sample)
+    else:
+        p, l, loss = evaluate_gpt2(sample)
     predictions.append(p)
     references.append(l)
-    # print("Predicted: ", p)
-    # print("Reference: ", l)
     losses.append(loss)
-
+    
+    print("Predicted: ", p)
+    print("Reference: ", l)
+    print("Loss: ", loss)
+    print("#" * 30)
+    # exit()
+    
 result = {}
 for metric_name in tqdm(EvalConfig.metrics, desc="Evaluating"):
     metric = metrics[metric_name]

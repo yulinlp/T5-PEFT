@@ -23,35 +23,91 @@ def get_config(json_path):
     config = EasyDict(read_json(json_path))
     return config
 
-def clean_data(dataset):
+def clean_data(dataset, is_official=True):
     '''
     清洗数据
     '''
-    train_data = _clean_data(dataset, catagory='train')
-    test_data = _clean_data(dataset, catagory='test')
-    valid_data = _clean_data(dataset, catagory='validation')
+    if is_official:
+        train_data = _clean_data_official(dataset, catagory='train')
+        test_data = _clean_data_official(dataset, catagory='test')
+        valid_data = _clean_data_official(dataset, catagory='validation')
+    else:
+        train_data = _clean_data(dataset, catagory='train')
+        test_data = _clean_data(dataset, catagory='test')
+        valid_data = _clean_data(dataset, catagory='validation')
     
     return train_data, test_data, valid_data
 
 def _clean_data(dataset, catagory='train'):
     data = list(map(eval, dataset[catagory]['text']))
     data = [item['dialog'] for item in data]
-    # 合并相邻的相同speaker的数据, 处理sys先开口的情况
+    # 合并相邻的相同speaker的数据
     for i in range(len(data)):
         for j in range(len(data[i]) - 1, 0, -1):
             if data[i][j]['speaker'] == data[i][j - 1]['speaker']:
-                data[i][j - 1]['text'] += data[i][j]['text']
+                data[i][j - 1]['text'] += " " + data[i][j]['text']
                 data[i].pop(j)
+    # 处理sys先开口的情况：直接丢弃sys第一句话，始终保持usr先开口
     data = [[(dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(1, len(dialog), 2)] if dialog[0]['speaker']=='usr' else [(dialog[idx - 1]['text'], dialog[idx]['text']) for idx in range(2, len(dialog), 2)] for dialog in data]
+
+    return data
+
+def _clean_data_official(dataset, catagory='train'):
+    '''
+    将每个对话分成 5 个话语的对话片段, 其中包含一位支持者的回应和前4句话。
+    '''
+    data = list(map(eval, dataset[catagory]['text']))
+    data = [item['dialog'] for item in data]
+    new_data = []
+    for dialog in data:
+        for i in range(5, len(dialog)):
+            if dialog[i - 1]['speaker'] == 'sys':
+                new_data.append(dialog[i-5:i])
+    
+    return new_data
+    
+def merge_history_official(data, tokenizer=None):
     # 构造带有历史的对话数据
+    if tokenizer.additional_special_tokens is not None:
+        new_data = []
+        for dialog in data:
+            new_dialog = []
+            for idx, utterance in enumerate(dialog):
+                if utterance['speaker'] == 'sys':
+                    text = tokenizer.additional_special_tokens[1] + utterance['text']
+                else:
+                    text = tokenizer.additional_special_tokens[0] + utterance['text']
+                new_dialog.append(text)
+            new_data.append(new_dialog)
+    
+    ret_data = []
+    for dialog in new_data:
+        ret_data.append({
+            'input': ''.join(dialog[:-1]),
+            'target': dialog[-1] + tokenizer.eos_token if tokenizer.additional_special_tokens is not None else dialog[-1]
+        })
+    return ret_data
+
+def merge_history(data, tokenizer = None):
+    # 构造带有历史的对话数据
+    if tokenizer.additional_special_tokens is not None:
+        # 对每轮每人的发言加入eos, 起始加入bos
+        for idx, item in enumerate(data):
+            for i in range(len(item)):
+                if i == 0:
+                    item[i] = (tokenizer.bos_token + item[i][0], tokenizer.additional_special_tokens[1] + item[i][1])
+                    # item[i] = (tokenizer.additional_special_tokens[0] + item[i][0], tokenizer.additional_special_tokens[1] + item[i][1])
+                else:
+                    item[i] = (tokenizer.additional_special_tokens[0] + item[i][0], tokenizer.additional_special_tokens[1] + item[i][1])
+    
     new_data = []
     for idx, item in enumerate(data):
         for i in range(len(item)):
             new_data.append({
                 'input': build_template_default(query=item[i][0], prefix=False, history=item[:i] if i > 0 else None),
-                'target': item[i][1]
+                'target': item[i][1] + tokenizer.eos_token if tokenizer.additional_special_tokens is not None else item[i][1]
             })
-    
+    # exit()
     return new_data
 
 def build_template_default(query, prefix=False, history=None):
@@ -95,7 +151,6 @@ def count_len(dataset: Dataset):
     plt.show()
     print("success")
 
-
 def create_logger(logger_file_name):
     """
     创建logger
@@ -130,34 +185,9 @@ def seed_everything(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    
-def compute_ppl(model, tokenizer, test_set, EvalConfig):
-    encodings = tokenizer(test_set['input_ids'], return_tensors='pt', truncation=True)
-    max_length = model.config.n_positions
-    stride = EvalConfig.max_input_length
-    seq_len = encodings.input_ids.size(1)
 
-    nlls = []
-    prev_end_loc = 0
-    for begin_loc in tqdm(range(0, seq_len, stride)):
-        end_loc = min(begin_loc + max_length, seq_len)
-        trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
-        input_ids = encodings.input_ids[:, begin_loc:end_loc].to('cuda')
-        target_ids = input_ids.clone()
-        target_ids[:, :-trg_len] = -100
-
-        with torch.no_grad():
-            outputs = model(input_ids, labels=target_ids)
-
-            # loss is calculated using CrossEntropyLoss which averages over valid labels
-            # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
-            # to the left by 1.
-            neg_log_likelihood = outputs.loss
-
-        nlls.append(neg_log_likelihood)
-
-        prev_end_loc = end_loc
-        if end_loc == seq_len:
-            break
-
-    ppl = torch.exp(torch.stack(nlls).mean())
+def find_last_index(arr, target):
+    for i in range(len(arr) - 1, -1, -1):
+        if arr[i] == target:
+            return i
+    return -1

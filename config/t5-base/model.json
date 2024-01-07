@@ -1,0 +1,4 @@
+{
+    "model_name": "t5-base",
+    "tokenizer_name": "t5-base"
+}
