@@ -15,7 +15,7 @@ parser.add_argument('--config', type=str, default='config/t5-base/', help='confi
 # ConfigRoot = 'config/gpt2-small/'
 # ConfigRoot = 'config/t5-base/'
 # ConfigRoot = 'config/flan-t5-base/'
-exit()
+
 args = parser.parse_args()
 ConfigRoot = args.config
 
