@@ -28,8 +28,8 @@ TrainConfig = get_config(ConfigRoot + 'train.json')
 
 seed_everything(TrainConfig.seed)
 
-# if os.path.exists(TrainConfig.output_dir) and os.listdir(TrainConfig.output_dir):
-#     raise ValueError(f"Output directory ({TrainConfig.output_dir}) already exists and is not empty.")
+if os.path.exists(TrainConfig.output_dir) and os.listdir(TrainConfig.output_dir):
+    raise ValueError(f"Output directory ({TrainConfig.output_dir}) already exists and is not empty.")
 
 if not os.path.exists(TrainConfig.logging_dir):
     os.mkdir(TrainConfig.logging_dir)
