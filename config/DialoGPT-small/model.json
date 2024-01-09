@@ -1,0 +1,4 @@
+{
+    "model_name": "microsoft/DialoGPT-small",
+    "tokenizer_name": "microsoft/DialoGPT-small"
+}

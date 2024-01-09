@@ -83,8 +83,8 @@ def merge_history_official(data, tokenizer=None):
     ret_data = []
     for dialog in new_data:
         ret_data.append({
-            'input': ''.join(dialog[:-1]),
-            'target': dialog[-1] + tokenizer.eos_token if tokenizer.additional_special_tokens is not None else dialog[-1]
+            'input': ''.join(dialog[:-1] + [tokenizer.additional_special_tokens[1]]),
+            'target': dialog[-1].replace(tokenizer.additional_special_tokens[1], '') + tokenizer.eos_token if tokenizer.additional_special_tokens is not None else dialog[-1]
         })
     return ret_data
 
@@ -189,5 +189,14 @@ def seed_everything(seed):
 def find_last_index(arr, target):
     for i in range(len(arr) - 1, -1, -1):
         if arr[i] == target:
+            return i
+    return -1
+
+def find_sublist_index(list1, list2):
+    '''
+    在list1中找到list2的索引
+    '''
+    for i in range(len(list1) - len(list2) + 1):
+        if list1[i:i + len(list2)] == list2:
             return i
     return -1

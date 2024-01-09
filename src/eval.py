@@ -43,18 +43,18 @@ for metric_name in EvalConfig.metrics:
     metrics[metric_name] = evaluate.load('cached_metrics/' + metric_name)
     logger.info(f"Loaded {metric_name}...")
 
-if 'gpt' in ModelConfig.model_name:
+if 'gpt' in ModelConfig.model_name.lower():
     model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
-    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name, padding_side="right")
+    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
 else:
     model = AutoModelForSeq2SeqLM.from_pretrained(ModelConfig.model_name)
-    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name)
 
 if EvalConfig.is_PEFT:
     # Load peft config for pre-trained checkpoint etc.
     peft_model_id = EvalConfig.PEFT_model_dir
     model = PeftModel.from_pretrained(model, peft_model_id, device_map={"":0})
-    if 'gpt' in ModelConfig.model_name:
+    if 'gpt' in ModelConfig.model_name.lower():
         # load base LLM model and tokenizer
         bos = '<|bos|>'
         pad = '<|pad|>'
@@ -82,7 +82,7 @@ raw_data = load_dataset("./dataset/esconv")
 logger.info("Successfully loaded dataset")
 
 train_data, test_data, valid_data = clean_data(raw_data, EvalConfig.data_official)
-if 'gpt' in ModelConfig.model_name:
+if 'gpt' in ModelConfig.model_name.lower():
     train_set = GPT2Dataset(train_data, EvalConfig, ModelConfig, tokenizer)
     test_set = GPT2Dataset(test_data, EvalConfig, ModelConfig, tokenizer)
     valid_set = GPT2Dataset(valid_data, EvalConfig, ModelConfig, tokenizer)
@@ -91,13 +91,11 @@ else:
     test_set = T5Dataset(test_data, EvalConfig, ModelConfig, tokenizer)
     valid_set = T5Dataset(valid_data, EvalConfig, ModelConfig, tokenizer)
 
-tokenizer.padding_side = "left"
-
 def evaluate_gpt2(sample):
     # generate
     target_idx = find_last_index(sample['input_ids'], tokenizer.additional_special_tokens_ids[1])
     raw_input_ids = sample['input_ids']
-    label_ids = [tokenizer.pad_token_id] * (target_idx + 1) + sample['input_ids'][target_idx + 1:]
+    label_ids = sample['input_ids'][target_idx + 1:]
     sample['input_ids'] = [tokenizer.pad_token_id] * (len(sample['input_ids']) - target_idx - 1) + sample['input_ids'][:target_idx + 1]
     preds = model.generate(input_ids=torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), 
                            do_sample=GenerateConfig.do_sample, 
@@ -110,15 +108,15 @@ def evaluate_gpt2(sample):
     if isinstance(preds, tuple):
         preds = preds[0]
     decoded_inputs = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
-    # logger.info("decoded_inputs: ", decoded_inputs)
+    # print("decoded_inputs: ", decoded_inputs)
+    # exit()
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
     decoded_preds = decoded_preds[0].replace(decoded_inputs, '')
     
     # Replace -100 in the labels as we can't decode them.
     with torch.no_grad():
         output = model(input_ids = torch.tensor(raw_input_ids).unsqueeze(dim=0).cuda(), 
-                       labels = torch.tensor([-100 if i == tokenizer.pad_token_id else i for i in raw_input_ids]).unsqueeze(dim=0).cuda()
-                       )
+                       labels = torch.tensor([-100 if i == tokenizer.pad_token_id else i for i in raw_input_ids]).unsqueeze(dim=0).cuda())
         loss = output.loss.item()
 
     decoded_labels = tokenizer.batch_decode([label_ids], skip_special_tokens=True)[0]
@@ -141,13 +139,14 @@ def evaluate_t5(sample):
     # logger.info(decoded_inputs)
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
     # logger.info(decoded_preds)
-    # Replace -100 in the labels as we can't decode them.
+
     labels = sample['labels']
-    model.eval()
     with torch.no_grad():
-        output = model(input_ids = torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), labels = torch.tensor([labels]).cuda())
+        output = model(input_ids = torch.tensor(sample["input_ids"]).unsqueeze(dim=0).cuda(), 
+                       labels = torch.tensor([labels]).cuda())
         loss = output.loss.item()
-        
+    
+    # Replace -100 in the labels as we can't decode them.
     labels = torch.tensor([[0 if val == -100 else val for val in labels]]).cuda()
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     return decoded_preds[0], decoded_labels[0], loss
@@ -160,7 +159,7 @@ logger.info("="*30)
 
 predictions, references, losses = [], [], []
 for idx, sample in tqdm(enumerate(test_set), desc="Generating"):
-    if 't5' in ModelConfig.model_name:
+    if 't5' in ModelConfig.model_name.lower():
         p, l, loss = evaluate_t5(sample)
     else:
         p, l, loss = evaluate_gpt2(sample)
@@ -168,9 +167,9 @@ for idx, sample in tqdm(enumerate(test_set), desc="Generating"):
     references.append(l)
     losses.append(loss)
     
-    logger.info(f"{idx} Predicted: ", p)
-    logger.info(f"{idx} Reference: ", l)
-    logger.info(f"{idx} Loss: ", loss)
+    logger.info(f"{idx} Predicted: {p}")
+    logger.info(f"{idx} Reference: {l}")
+    logger.info(f"{idx} Loss: {loss}")
     logger.info("#" * 30)
     # exit()
     

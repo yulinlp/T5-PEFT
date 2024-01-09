@@ -34,7 +34,7 @@ if os.path.exists(TrainConfig.output_dir) and os.listdir(TrainConfig.output_dir)
 if not os.path.exists(TrainConfig.logging_dir):
     os.mkdir(TrainConfig.logging_dir)
     
-if 'gpt' in ModelConfig.model_name:
+if 'gpt' in ModelConfig.model_name.lower():
     model = AutoModelForCausalLM.from_pretrained(ModelConfig.model_name)
     tokenizer = AutoTokenizer.from_pretrained(ModelConfig.tokenizer_name, padding_side="right")
     bos = '<|bos|>'
@@ -65,7 +65,7 @@ raw_data = load_dataset("./dataset/esconv")
 print("Successfully loaded dataset")
 
 train_data, test_data, valid_data = clean_data(raw_data, TrainConfig.data_official)
-if 'gpt' in ModelConfig.model_name:
+if 'gpt' in ModelConfig.model_name.lower():
     train_set = GPT2Dataset(train_data, TrainConfig, ModelConfig, tokenizer)
     test_set = GPT2Dataset(test_data, TrainConfig, ModelConfig, tokenizer)
     valid_set = GPT2Dataset(valid_data, TrainConfig, ModelConfig, tokenizer)
@@ -84,15 +84,16 @@ lora_config = LoraConfig(
     lora_alpha=TrainConfig.lora['alpha'],
     lora_dropout=TrainConfig.lora['dropout'],
     bias=TrainConfig.lora['bias'],
-    task_type=TaskType.SEQ_2_SEQ_LM if 't5' in ModelConfig.model_name else TaskType.CAUSAL_LM
+    task_type=TaskType.SEQ_2_SEQ_LM if 't5' in ModelConfig.model_name.lower() else TaskType.CAUSAL_LM
 )
 
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 
 # Data collator
-if 'gpt' in ModelConfig.model_name:
-    data_collator = DataCollatorForLanguageModeling(
+# TODO: modify data collator for GPT series models
+if 'gpt' in ModelConfig.model_name.lower():
+    data_collator = GPT_data_collator(
         tokenizer=tokenizer,
         mlm=False,
         pad_to_multiple_of=8
@@ -130,7 +131,7 @@ trainer = Trainer(
     args=training_args,
     data_collator=data_collator,
     train_dataset=train_set,
-    eval_dataset=test_set,
+    eval_dataset=valid_set,
     tokenizer=tokenizer,
     callbacks=[EarlyStoppingCallback(early_stopping_patience=TrainConfig.early_stopping_patience),]
 )
