@@ -7,7 +7,7 @@
     "truncation": "from_end",
     "data_official": true,
     "seed": 1234,
-    "PEFT_model_dir": "output/0109/gpt2/checkpoint-300",
+    "PEFT_model_dir": "output/0109/gpt2/checkpoint-4800",
     "logging_dir": "logs/gpt2",
     "GenerateConfig": {
         "do_sample": true,

@@ -1,6 +1,6 @@
 {   
     "seed": 1234,
-    "lr": 1e-3,
+    "lr": 5e-4,
     "n_epochs": 20,
     "batch_size": 8,
     "max_input_length": 512,
@@ -11,12 +11,12 @@
     "weight_decay": 1e-4,
     "gradient_accumulation_steps": 4,
     "lora": {
-        "r": 64,
-        "alpha": 64,
+        "r": 32,
+        "alpha": 32,
         "dropout": 0.05,
         "bias": "none"
     },
-    "output_dir": "output/0108/DialoGPT-small",
+    "output_dir": "output/0109/DialoGPT-small",
     "evaluation_strategy": "steps",
     "eval_steps": 300,
     "save_strategy": "steps",
@@ -24,7 +24,7 @@
     "logging_strategy": "steps",
     "logging_steps": 300,
     "report_to": "tensorboard",
-    "save_model_dir": "results/0108/DialoGPT-small",
+    "save_model_dir": "results/0109/DialoGPT-small",
     "logging_dir": "logs",
     "early_stopping_patience": 3,
     "metrics": ["bleu", "rouge"]

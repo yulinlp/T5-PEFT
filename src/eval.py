@@ -116,7 +116,7 @@ def evaluate_gpt2(sample):
     # Replace -100 in the labels as we can't decode them.
     with torch.no_grad():
         output = model(input_ids = torch.tensor(raw_input_ids).unsqueeze(dim=0).cuda(), 
-                       labels = torch.tensor([-100 if i == tokenizer.pad_token_id else i for i in raw_input_ids]).unsqueeze(dim=0).cuda())
+                       labels = torch.tensor(sample['labels']).unsqueeze(dim=0).cuda())
         loss = output.loss.item()
 
     decoded_labels = tokenizer.batch_decode([label_ids], skip_special_tokens=True)[0]
